@@ -28,6 +28,27 @@ pub struct AudioConfig {
     pub device_name: Option<String>,
     pub fft_size: usize,
     pub target_fps: u32,
+    #[serde(default = "default_sensitivity")]
+    pub sensitivity: f32,
+}
+
+fn default_sensitivity() -> f32 {
+    1.0
+}
+
+impl AudioConfig {
+    /// Validates config values, clamping to safe ranges.
+    pub fn validated(mut self) -> Self {
+        // FFT size must be a power of 2 in [256, 16384]
+        if !self.fft_size.is_power_of_two() || self.fft_size < 256 || self.fft_size > 16384 {
+            self.fft_size = 2048;
+        }
+        // FPS must be in [1, 120]
+        self.target_fps = self.target_fps.clamp(1, 120);
+        // Sensitivity must be in [0.5, 2.0]
+        self.sensitivity = self.sensitivity.clamp(0.5, 2.0);
+        self
+    }
 }
 
 impl Default for AudioConfig {
@@ -36,6 +57,7 @@ impl Default for AudioConfig {
             device_name: None,
             fft_size: 2048,
             target_fps: 60,
+            sensitivity: 1.0,
         }
     }
 }

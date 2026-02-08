@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { useToastStore } from "../stores/toastStore";
 
 export interface WebGLState {
   gl: WebGL2RenderingContext | null;
@@ -17,11 +18,11 @@ export function useWebGL(): WebGLState {
       alpha: false,
       antialias: false,
       powerPreference: "high-performance",
-      preserveDrawingBuffer: false,
+      preserveDrawingBuffer: true,
     });
 
     if (!context) {
-      console.error("WebGL 2 not supported");
+      useToastStore.getState().addToast("error", "WebGL 2 not supported", 0);
       return;
     }
 
@@ -44,8 +45,22 @@ export function useWebGL(): WebGLState {
     const observer = new ResizeObserver(resizeCanvas);
     observer.observe(canvas);
 
+    // WebGL context loss handling
+    const handleContextLost = (e: Event) => {
+      e.preventDefault();
+      useToastStore.getState().addToast("error", "Graphics context lost — refresh to recover", 0);
+    };
+    const handleContextRestored = () => {
+      useToastStore.getState().addToast("success", "Graphics context restored");
+    };
+
+    canvas.addEventListener("webglcontextlost", handleContextLost);
+    canvas.addEventListener("webglcontextrestored", handleContextRestored);
+
     return () => {
       observer.disconnect();
+      canvas.removeEventListener("webglcontextlost", handleContextLost);
+      canvas.removeEventListener("webglcontextrestored", handleContextRestored);
     };
   }, []);
 

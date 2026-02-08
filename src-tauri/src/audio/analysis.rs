@@ -21,9 +21,11 @@ impl AudioAnalyzer {
         }
     }
 
-    pub fn analyze(&mut self, samples: &[f32]) -> AnalysisResult {
+    pub fn analyze(&mut self, samples: &[f32]) -> Option<AnalysisResult> {
         let n = self.fft_size;
-        assert!(samples.len() >= n, "Not enough samples for FFT");
+        if samples.len() < n {
+            return None;
+        }
 
         // Apply window and convert to complex
         let mut buffer: Vec<Complex<f32>> = samples[..n]
@@ -69,14 +71,14 @@ impl AudioAnalyzer {
 
         self.prev_spectrum.copy_from_slice(&spectrum);
 
-        AnalysisResult {
+        Some(AnalysisResult {
             spectrum,
             waveform,
             rms,
             centroid,
             flux,
             zcr,
-        }
+        })
     }
 
     fn downsample(samples: &[f32], target_len: usize) -> Vec<f32> {
@@ -159,7 +161,7 @@ mod tests {
             .collect();
 
         let mut analyzer = AudioAnalyzer::new(fft_size);
-        let result = analyzer.analyze(&samples);
+        let result = analyzer.analyze(&samples).expect("analyze should return result for valid input");
 
         // Find peak bin
         let peak_bin = result
@@ -185,7 +187,7 @@ mod tests {
         let fft_size = 2048;
         let samples = vec![0.0f32; fft_size];
         let mut analyzer = AudioAnalyzer::new(fft_size);
-        let result = analyzer.analyze(&samples);
+        let result = analyzer.analyze(&samples).expect("analyze should return result for valid input");
 
         let max_val = result.spectrum.iter().cloned().fold(0.0f32, f32::max);
         assert!(max_val < 0.01, "Silence should produce near-zero spectrum");

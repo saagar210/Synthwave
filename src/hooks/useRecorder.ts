@@ -16,6 +16,17 @@ export function useRecorder(): RecorderState {
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef(0);
+  const stoppingRef = useRef(false);
+
+  const cleanup = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    setIsRecording(false);
+    setDuration(0);
+    stoppingRef.current = false;
+  }, []);
 
   const startRecording = useCallback((canvas: HTMLCanvasElement) => {
     const stream = canvas.captureStream(60);
@@ -35,22 +46,24 @@ export function useRecorder(): RecorderState {
     recorder.start(100);
     recorderRef.current = recorder;
     startTimeRef.current = Date.now();
+    stoppingRef.current = false;
     setIsRecording(true);
 
     timerRef.current = setInterval(() => {
       const elapsed = (Date.now() - startTimeRef.current) / 1000;
       setDuration(Math.floor(elapsed));
 
-      if (elapsed >= MAX_DURATION) {
+      if (elapsed >= MAX_DURATION && !stoppingRef.current) {
+        stoppingRef.current = true;
         recorder.stop();
-        setIsRecording(false);
-        if (timerRef.current) clearInterval(timerRef.current);
+        cleanup();
       }
     }, 200);
-  }, []);
+  }, [cleanup]);
 
   const stopRecording = useCallback(async (): Promise<Blob | null> => {
-    if (!recorderRef.current) return null;
+    if (!recorderRef.current || stoppingRef.current) return null;
+    stoppingRef.current = true;
 
     return new Promise((resolve) => {
       const recorder = recorderRef.current!;
@@ -61,11 +74,9 @@ export function useRecorder(): RecorderState {
       };
 
       recorder.stop();
-      setIsRecording(false);
-      setDuration(0);
-      if (timerRef.current) clearInterval(timerRef.current);
+      cleanup();
     });
-  }, []);
+  }, [cleanup]);
 
   return { isRecording, duration, startRecording, stopRecording };
 }

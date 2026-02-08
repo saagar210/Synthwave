@@ -1,6 +1,7 @@
 import { ShaderProgram } from "./shaderProgram";
 import { AudioTexture } from "./audioTexture";
 import { BloomPipeline } from "./bloom";
+import { Framebuffer } from "./framebuffer";
 import { ParticleSystem } from "./particles";
 import { perspective, lookAt, multiply } from "./math";
 import type { ThemeColors } from "../stores/visualStore";
@@ -18,6 +19,7 @@ import terrainVert from "../shaders/terrain.vert?raw";
 import terrainFrag from "../shaders/terrain.frag?raw";
 import nebulaFrag from "../shaders/nebula.frag?raw";
 import starfieldFrag from "../shaders/starfield.frag?raw";
+import transitionFrag from "../shaders/transition.frag?raw";
 
 const HISTORY_SIZE = 128;
 const GRID_SIZE = 128;
@@ -47,6 +49,7 @@ export class Renderer {
   private terrainProgram: ShaderProgram;
   private nebulaProgram: ShaderProgram;
   private starfieldProgram: ShaderProgram;
+  private transitionProgram: ShaderProgram;
 
   private waveformVao: WebGLVertexArrayObject;
   private barsVao: WebGLVertexArrayObject;
@@ -54,6 +57,12 @@ export class Renderer {
 
   private particles: ParticleSystem;
   private bloom: BloomPipeline;
+
+  // Transition FBOs
+  private finalFbo: Framebuffer;
+  private transitionFbo: Framebuffer;
+  private activeMode: VisualizationMode = "waveform";
+  private transitionAlpha = 0;
 
   private currentColors: ThemeColors;
   private targetColors: ThemeColors;
@@ -86,6 +95,7 @@ export class Renderer {
     this.terrainProgram = new ShaderProgram(gl, terrainVert, terrainFrag);
     this.nebulaProgram = new ShaderProgram(gl, fullscreenVert, nebulaFrag);
     this.starfieldProgram = new ShaderProgram(gl, fullscreenVert, starfieldFrag);
+    this.transitionProgram = new ShaderProgram(gl, fullscreenVert, transitionFrag);
 
     // VAOs
     this.fullscreenVao = gl.createVertexArray()!;
@@ -97,6 +107,10 @@ export class Renderer {
 
     // Bloom
     this.bloom = new BloomPipeline(gl, gl.drawingBufferWidth, gl.drawingBufferHeight);
+
+    // Transition FBOs
+    this.finalFbo = new Framebuffer(gl, gl.drawingBufferWidth, gl.drawingBufferHeight);
+    this.transitionFbo = new Framebuffer(gl, gl.drawingBufferWidth, gl.drawingBufferHeight);
 
     // Theme
     this.currentColors = { ...THEMES[0].colors };
@@ -127,6 +141,12 @@ export class Renderer {
 
   render(time: number, deltaTime: number, mode: VisualizationMode, audioData: AudioData | null): void {
     const gl = this.gl;
+    const w = gl.drawingBufferWidth;
+    const h = gl.drawingBufferHeight;
+
+    // Resize transition FBOs if needed
+    this.finalFbo.resize(w, h);
+    this.transitionFbo.resize(w, h);
 
     // Theme transition
     if (this.colorTransition < 1.0) {
@@ -139,14 +159,61 @@ export class Renderer {
     const centroid = audioData?.centroid ?? 0;
     const beatIntensity = audioData?.beatIntensity ?? 0;
 
+    // Check mode change BEFORE rendering (finalFbo still has previous frame)
+    if (mode !== this.activeMode) {
+      this.copyFbo(this.finalFbo, this.transitionFbo);
+      this.transitionAlpha = 1.0;
+      this.activeMode = mode;
+    }
+
     // Resize bloom if needed
-    this.bloom.resize(gl.drawingBufferWidth, gl.drawingBufferHeight);
+    this.bloom.resize(w, h);
 
     // Render scene into bloom FBO
     this.bloom.sceneFramebuffer.bind();
     gl.clearColor(colors.background[0], colors.background[1], colors.background[2], 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
+    this.renderMode(mode, time, deltaTime, rms, centroid, beatIntensity, colors);
+
+    // Apply bloom → finalFbo
+    this.bloom.sceneFramebuffer.unbind();
+    gl.viewport(0, 0, w, h);
+    const bloomIntensity = 0.3 + rms * 0.5 + beatIntensity * 0.3;
+    this.bloom.render(bloomIntensity, this.finalFbo);
+
+    // Blit finalFbo to screen
+    this.blitToScreen(this.finalFbo);
+
+    // Overlay fading snapshot if transitioning
+    if (this.transitionAlpha > 0.01) {
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+      this.transitionProgram.use();
+      gl.activeTexture(gl.TEXTURE7);
+      gl.bindTexture(gl.TEXTURE_2D, this.transitionFbo.texture);
+      this.transitionProgram.setInt("u_snapshot", 7);
+      this.transitionProgram.setFloat("u_alpha", this.transitionAlpha);
+
+      gl.bindVertexArray(this.fullscreenVao);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl.bindVertexArray(null);
+
+      gl.disable(gl.BLEND);
+      this.transitionAlpha -= deltaTime * 2.0; // 500ms fade
+    }
+  }
+
+  private renderMode(
+    mode: VisualizationMode,
+    time: number,
+    deltaTime: number,
+    rms: number,
+    centroid: number,
+    beatIntensity: number,
+    colors: ThemeColors,
+  ): void {
     switch (mode) {
       case "waveform":
         this.renderWaveform(time, rms, beatIntensity, colors);
@@ -170,12 +237,31 @@ export class Renderer {
         this.renderStarfield(time, rms, beatIntensity, colors);
         break;
     }
+  }
 
-    // Apply bloom
-    this.bloom.sceneFramebuffer.unbind();
-    gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
-    const bloomIntensity = 0.3 + rms * 0.5 + beatIntensity * 0.3;
-    this.bloom.render(bloomIntensity);
+  private copyFbo(src: Framebuffer, dst: Framebuffer): void {
+    const gl = this.gl;
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, src.fbo);
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, dst.fbo);
+    gl.blitFramebuffer(
+      0, 0, src.width, src.height,
+      0, 0, dst.width, dst.height,
+      gl.COLOR_BUFFER_BIT, gl.NEAREST,
+    );
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+  }
+
+  private blitToScreen(src: Framebuffer): void {
+    const gl = this.gl;
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, src.fbo);
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+    gl.blitFramebuffer(
+      0, 0, src.width, src.height,
+      0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight,
+      gl.COLOR_BUFFER_BIT, gl.NEAREST,
+    );
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
   }
 
   private renderWaveform(_time: number, rms: number, beatIntensity: number, colors: ThemeColors): void {
@@ -338,10 +424,13 @@ export class Renderer {
     this.terrainProgram.dispose();
     this.nebulaProgram.dispose();
     this.starfieldProgram.dispose();
+    this.transitionProgram.dispose();
     gl.deleteVertexArray(this.fullscreenVao);
     gl.deleteVertexArray(this.waveformVao);
     gl.deleteVertexArray(this.barsVao);
     this.particles.dispose();
     this.bloom.dispose();
+    this.finalFbo.dispose();
+    this.transitionFbo.dispose();
   }
 }

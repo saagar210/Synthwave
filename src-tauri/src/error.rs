@@ -5,6 +5,9 @@ pub enum AppError {
     #[error("Audio error: {0}")]
     Audio(String),
 
+    #[error("AI error: {0}")]
+    Ai(String),
+
     #[error("Configuration error: {0}")]
     Config(String),
 

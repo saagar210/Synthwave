@@ -12,6 +12,8 @@ pub struct AppSettings {
     pub sensitivity: f32,
     pub fft_size: usize,
     pub target_fps: u32,
+    #[serde(default)]
+    pub has_seen_welcome: bool,
 }
 
 impl Default for AppSettings {
@@ -23,6 +25,7 @@ impl Default for AppSettings {
             sensitivity: 1.0,
             fft_size: 2048,
             target_fps: 60,
+            has_seen_welcome: false,
         }
     }
 }
@@ -66,6 +69,7 @@ mod tests {
             sensitivity: 1.5,
             fft_size: 4096,
             target_fps: 30,
+            has_seen_welcome: true,
         };
 
         let json = serde_json::to_string(&settings).unwrap();
@@ -77,5 +81,14 @@ mod tests {
         assert!((settings.sensitivity - loaded.sensitivity).abs() < 0.01);
         assert_eq!(settings.fft_size, loaded.fft_size);
         assert_eq!(settings.target_fps, loaded.target_fps);
+        assert_eq!(settings.has_seen_welcome, loaded.has_seen_welcome);
+    }
+
+    #[test]
+    fn test_settings_backward_compat() {
+        // Simulate loading old config without has_seen_welcome
+        let json = r#"{"lastMode":"waveform","lastThemeIndex":0,"lastDeviceName":null,"sensitivity":1.0,"fftSize":2048,"targetFps":60}"#;
+        let loaded: AppSettings = serde_json::from_str(json).unwrap();
+        assert!(!loaded.has_seen_welcome);
     }
 }

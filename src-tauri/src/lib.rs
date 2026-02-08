@@ -16,6 +16,8 @@ pub fn run() {
             commands::list_audio_devices,
             commands::start_audio,
             commands::stop_audio,
+            commands::start_file_audio,
+            commands::toggle_pause,
             commands::check_ollama,
             commands::classify_audio,
             commands::load_settings,

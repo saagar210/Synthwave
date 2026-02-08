@@ -20,4 +20,5 @@ export interface AudioConfig {
   deviceName: string | null;
   fftSize: number;
   targetFps: number;
+  sensitivity: number;
 }

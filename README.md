@@ -27,16 +27,20 @@ All seven modes react to bass energy, spectral centroid, zero-crossing rate, and
 ## Features
 
 - **Real-time FFT analysis** — Rust-powered audio pipeline: cpal capture, lock-free ring buffer, rustfft analysis, streamed to the frontend at 60Hz via Tauri Channels
+- **Audio file playback** — Drag-and-drop MP3, WAV, FLAC, OGG, or AAC files directly onto the window. Symphonia decodes in Rust and feeds the same analysis pipeline as live audio
 - **7 visualization modes** — From classic waveforms to raymarched nebulas, each mode is a hand-written GLSL 300 es shader
+- **Smooth mode transitions** — Crossfade between modes with a 500ms FBO snapshot overlay instead of harsh cuts
 - **9 color themes** — Synthwave, Monochrome, Fire, Ocean, Neon, Sunset, Matrix, Aurora, and Custom — with smooth 500ms transitions
 - **Beat detection** — Adaptive energy-based onset detection with BPM estimation, cooldown, and configurable sensitivity
-- **Bloom post-processing** — 4-pass framebuffer ping-pong for that neon glow
+- **Bloom post-processing** — 4-pass framebuffer ping-pong with Reinhard tonemapping to prevent highlight blowout
 - **50K particle GPU sim** — Transform feedback keeps all 50,000 particles on the GPU
-- **AI genre/mood detection** — Optional Ollama integration classifies your music's genre, mood, and energy level using local LLMs
-- **Video recording** — Capture up to 60 seconds of WebM at 60fps directly from the canvas
-- **Screenshots** — One keypress to save a high-res PNG
-- **Keyboard-driven** — Full keyboard shortcut support for modes, themes, fullscreen, recording, and more
-- **Persistent settings** — Your preferences survive app restarts
+- **AI genre/mood detection** — Optional Ollama integration classifies your music's genre, mood, and energy level every 15 seconds using local LLMs. Displayed live in the info overlay
+- **Video recording** — Record up to 60 seconds of WebM at 60fps directly from the canvas with a one-click UI or keyboard shortcut
+- **Screenshots** — `Cmd+Shift+S` saves a high-res PNG instantly
+- **Keyboard-driven** — Full keyboard shortcut support for modes, themes, fullscreen, recording, sensitivity, and more
+- **Persistent settings** — FFT size, sensitivity, last mode/theme, and preferences survive app restarts via debounced JSON persistence
+- **Error resilience** — Classified error toasts for mic permission issues, device disconnects, WebGL context loss, and audio stalls
+- **First-run onboarding** — Welcome modal guides new users through the basics on first launch
 
 ---
 
@@ -75,10 +79,11 @@ Hit **Start**, play some music, and watch your sound come alive.
 | `F` | Toggle fullscreen |
 | `I` | Toggle info overlay (BPM, FPS, genre) |
 | `H` | Hide/show controls |
-| `Space` | Pause/resume |
+| `Space` | Start/stop audio capture (or pause/resume file playback) |
 | `+` / `-` | Adjust beat sensitivity |
-| `Cmd+Shift+S` | Save screenshot |
-| `Cmd+R` | Start/stop recording |
+| `S` | Toggle settings drawer |
+| `Cmd+Shift+S` | Save screenshot (PNG) |
+| `Cmd+R` | Start/stop recording (WebM) |
 | `Esc` | Exit fullscreen |
 
 ---
@@ -86,30 +91,31 @@ Hit **Start**, play some music, and watch your sound come alive.
 ## Architecture
 
 ```
-cpal (audio capture)
-  |
-  v
-ringbuf (lock-free ring buffer)
-  |
-  v
-Analysis thread (FFT + features + beat detection) ──> Tauri Channel (60Hz)
-  |                                                         |
-  v                                                         v
-Ollama AI (optional)                                 zustand audioStore
-                                                            |
-                                                     WebGL 2 render loop
-                                                            |
-                                              ┌─────────────┼─────────────┐
-                                              v             v             v
-                                        Float32 tex    Theme UBO    Uniforms
-                                              |             |             |
-                                              └─────────────┴─────────────┘
-                                                            |
-                                                      Active shader
-                                                    (7 viz modes + bloom)
+cpal (mic capture)  ───or───  symphonia (file decode)
+         |                            |
+         v                            v
+       ringbuf (lock-free ring buffer, shared)
+                      |
+                      v
+       Analysis thread (FFT + features + beat detection) ──> Tauri Channel (60Hz)
+         |                                                         |
+         v                                                         v
+       Ollama AI (optional, every 15s)                      zustand audioStore
+                                                     (temporal spectrum smoothing)
+                                                                   |
+                                                            WebGL 2 render loop
+                                                                   |
+                                                     ┌─────────────┼─────────────┐
+                                                     v             v             v
+                                               Float32 tex    Theme UBO    Uniforms
+                                                     |             |             |
+                                                     └─────────────┴─────────────┘
+                                                                   |
+                                                             Active shader
+                                                     (7 viz modes + bloom + transitions)
 ```
 
-**Tech stack:** Tauri 2, React 19, TypeScript (strict), WebGL 2, Tailwind 4, zustand, rustfft, cpal, ringbuf
+**Tech stack:** Tauri 2, React 19, TypeScript (strict), WebGL 2, Tailwind 4, zustand, rustfft, cpal, ringbuf, symphonia
 
 ---
 
@@ -124,11 +130,12 @@ src-tauri/src/
   error.rs     — Error types
 
 src/
-  gl/          — WebGL renderer, shaders, audio textures, particles, bloom
-  shaders/     — 16 GLSL 300 es shaders (7 modes + bloom pipeline)
-  stores/      — zustand stores (audio, visual, settings)
-  hooks/       — audio stream, WebGL, render loop, keyboard, recorder
-  components/  — Controls, Settings, Visualizer, InfoOverlay
+  gl/          — WebGL renderer, shaders, audio textures, particles, bloom, transitions
+  shaders/     — 17 GLSL 300 es shaders (7 modes + bloom pipeline + transitions)
+  stores/      — zustand stores (audio, visual, settings, toast, canvas ref)
+  hooks/       — audio stream, WebGL, render loop, keyboard, recorder, classification, file drop
+  components/  — Controls, Settings, Visualizer, InfoOverlay, Toast, Welcome
+  utils/       — Screenshot capture
   themes/      — 9 color theme definitions
 ```
 
@@ -137,14 +144,14 @@ src/
 ## Tests
 
 ```bash
-# Rust tests (11 tests)
+# Rust tests (12 tests)
 cd src-tauri && cargo test
 
 # TypeScript type checking
 pnpm tsc --noEmit
 ```
 
-Rust test coverage includes FFT accuracy, beat detection, ring buffer correctness, Ollama response parsing, and settings persistence.
+Rust test coverage includes FFT accuracy, beat detection, ring buffer correctness, Ollama response parsing, settings persistence, and backward-compatible config loading.
 
 ---
 

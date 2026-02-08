@@ -39,7 +39,7 @@ export function SettingsDrawer({ open, onClose }: Props) {
             <label className="text-white/60 text-sm block mb-2">FFT Size</label>
             <select
               value={fftSize}
-              onChange={(e) => setFftSize(parseInt(e.target.value))}
+              onChange={(e) => setFftSize(parseInt(e.target.value, 10))}
               className="bg-white/10 text-white text-sm rounded-lg px-3 py-2 w-full border border-white/10 outline-none"
             >
               <option value="1024">1024</option>

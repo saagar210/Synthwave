@@ -67,6 +67,9 @@ pub fn start_capture(
 
     let sample_rate = supported_config.sample_rate().0;
     let channels = supported_config.channels() as usize;
+    if channels == 0 {
+        return Err(AppError::Audio("Device reports 0 channels".into()));
+    }
 
     let stream_config = StreamConfig {
         channels: supported_config.channels(),

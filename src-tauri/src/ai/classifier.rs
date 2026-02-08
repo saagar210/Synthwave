@@ -56,9 +56,9 @@ Respond with exactly: {{"genre": "<genre>", "mood": "<mood>", "energy": "<low|me
             (Some(start), Some(end)) if end > start => {
                 let json_str = &response[start..=end];
                 serde_json::from_str(json_str)
-                    .map_err(|e| AppError::Audio(format!("Failed to parse classification: {e}")))
+                    .map_err(|e| AppError::Ai(format!("Failed to parse classification: {e}")))
             }
-            _ => Err(AppError::Audio(
+            _ => Err(AppError::Ai(
                 "No JSON object found in Ollama response".into(),
             )),
         }

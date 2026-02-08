@@ -4,6 +4,7 @@ import { useRenderLoop } from "../hooks/useRenderLoop";
 import { Renderer } from "../gl/renderer";
 import { useAudioStore } from "../stores/audioStore";
 import { useVisualStore } from "../stores/visualStore";
+import { setCanvasRef } from "../stores/canvasRefStore";
 
 export function Visualizer() {
   const { gl, canvasRef } = useWebGL();
@@ -15,6 +16,12 @@ export function Visualizer() {
   if (gl && !rendererRef.current) {
     rendererRef.current = new Renderer(gl);
   }
+
+  // Register canvas ref for screenshot/recording
+  useEffect(() => {
+    setCanvasRef(canvasRef.current);
+    return () => setCanvasRef(null);
+  }, [canvasRef]);
 
   // Cleanup on unmount
   useEffect(() => {

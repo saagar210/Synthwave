@@ -48,19 +48,20 @@ impl OllamaClient {
             .timeout(std::time::Duration::from_secs(10))
             .send()
             .await
-            .map_err(|e| AppError::Audio(format!("Ollama request failed: {e}")))?;
+            .map_err(|e| AppError::Ai(format!("Ollama request failed: {e}")))?;
 
         let json: serde_json::Value = resp
             .json()
             .await
-            .map_err(|e| AppError::Audio(format!("Ollama response parse failed: {e}")))?;
+            .map_err(|e| AppError::Ai(format!("Ollama response parse failed: {e}")))?;
 
         json.get("response")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string())
-            .ok_or_else(|| AppError::Audio("No response field in Ollama output".into()))
+            .ok_or_else(|| AppError::Ai("No response field in Ollama output".into()))
     }
 
+    #[allow(dead_code)]
     pub fn model(&self) -> &str {
         &self.model
     }

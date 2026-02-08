@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { THEMES } from "../themes";
 
 export type VisualizationMode =
   | "waveform"
@@ -31,12 +32,14 @@ interface VisualState {
   themeIndex: number;
   showControls: boolean;
   showOverlay: boolean;
+  showSettings: boolean;
   fps: number;
   setMode: (mode: VisualizationMode) => void;
   setThemeIndex: (index: number) => void;
   cycleTheme: () => void;
   toggleControls: () => void;
   toggleOverlay: () => void;
+  toggleSettings: () => void;
   setFps: (fps: number) => void;
 }
 
@@ -45,15 +48,18 @@ export const useVisualStore = create<VisualState>((set) => ({
   themeIndex: 0,
   showControls: true,
   showOverlay: true,
+  showSettings: false,
   fps: 0,
 
   setMode: (mode) => set({ mode }),
   setThemeIndex: (themeIndex) => set({ themeIndex }),
   cycleTheme: () =>
-    set((state) => ({ themeIndex: (state.themeIndex + 1) % 9 })),
+    set((state) => ({ themeIndex: (state.themeIndex + 1) % THEMES.length })),
   toggleControls: () =>
     set((state) => ({ showControls: !state.showControls })),
   toggleOverlay: () =>
     set((state) => ({ showOverlay: !state.showOverlay })),
+  toggleSettings: () =>
+    set((state) => ({ showSettings: !state.showSettings })),
   setFps: (fps) => set({ fps }),
 }));

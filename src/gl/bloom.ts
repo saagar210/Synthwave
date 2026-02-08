@@ -43,7 +43,7 @@ export class BloomPipeline {
     this.pongFbo.resize(Math.floor(width / 2), Math.floor(height / 2));
   }
 
-  render(intensity: number): void {
+  render(intensity: number, targetFbo?: Framebuffer): void {
     const gl = this.gl;
     gl.bindVertexArray(this.vao);
 
@@ -78,9 +78,13 @@ export class BloomPipeline {
     this.blurProgram.setVec2("u_direction", 0.0, 1.0);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
 
-    // 4. Composite
-    this.sceneFbo.unbind();
-    gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+    // 4. Composite — render to targetFbo if provided, else to screen
+    if (targetFbo) {
+      targetFbo.bind();
+    } else {
+      this.sceneFbo.unbind();
+      gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+    }
     this.compositeProgram.use();
     gl.activeTexture(gl.TEXTURE5);
     gl.bindTexture(gl.TEXTURE_2D, this.sceneFbo.texture);

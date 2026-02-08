@@ -1,11 +1,13 @@
+use std::collections::VecDeque;
+
 const HISTORY_SIZE: usize = 60; // ~1 second at 60fps
 const COOLDOWN_FRAMES: usize = 6; // ~100ms at 60fps
 const BPM_HISTORY: usize = 20;
 
 pub struct BeatDetector {
-    energy_history: Vec<f32>,
+    energy_history: VecDeque<f32>,
     cooldown_counter: usize,
-    beat_timestamps: Vec<f64>,
+    beat_timestamps: VecDeque<f64>,
     sensitivity: f32,
     current_bpm: f32,
 }
@@ -13,32 +15,37 @@ pub struct BeatDetector {
 impl BeatDetector {
     pub fn new(sensitivity: f32) -> Self {
         Self {
-            energy_history: Vec::with_capacity(HISTORY_SIZE),
+            energy_history: VecDeque::with_capacity(HISTORY_SIZE + 1),
             cooldown_counter: 0,
-            beat_timestamps: Vec::with_capacity(BPM_HISTORY),
+            beat_timestamps: VecDeque::with_capacity(BPM_HISTORY + 1),
             sensitivity,
             current_bpm: 0.0,
         }
     }
 
+    #[allow(dead_code)]
     pub fn set_sensitivity(&mut self, sensitivity: f32) {
         self.sensitivity = sensitivity.clamp(0.5, 2.0);
     }
 
     pub fn detect(&mut self, spectrum: &[f32], timestamp: f64) -> (bool, f32) {
+        if spectrum.is_empty() {
+            return (false, self.current_bpm);
+        }
+
         // Compute bass-weighted energy (lower 1/8 of spectrum)
-        let bass_end = spectrum.len() / 8;
+        let bass_end = (spectrum.len() / 8).max(1);
         let bass_energy: f32 = spectrum[..bass_end]
             .iter()
             .map(|&s| s * s)
             .sum::<f32>()
             / bass_end as f32;
 
-        // Add to history
+        // Add to history (O(1) with VecDeque)
         if self.energy_history.len() >= HISTORY_SIZE {
-            self.energy_history.remove(0);
+            self.energy_history.pop_front();
         }
-        self.energy_history.push(bass_energy);
+        self.energy_history.push_back(bass_energy);
 
         // Need enough history for meaningful detection
         if self.energy_history.len() < 10 {
@@ -68,9 +75,9 @@ impl BeatDetector {
 
         if is_beat {
             self.cooldown_counter = COOLDOWN_FRAMES;
-            self.beat_timestamps.push(timestamp);
+            self.beat_timestamps.push_back(timestamp);
             if self.beat_timestamps.len() > BPM_HISTORY {
-                self.beat_timestamps.remove(0);
+                self.beat_timestamps.pop_front();
             }
             self.update_bpm();
         }
@@ -87,11 +94,14 @@ impl BeatDetector {
         // Compute intervals
         let mut intervals: Vec<f64> = self
             .beat_timestamps
+            .iter()
+            .collect::<Vec<_>>()
             .windows(2)
             .map(|w| w[1] - w[0])
             .collect();
 
-        intervals.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        // Sort with NaN-safe comparison
+        intervals.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
         // Median interval
         let median = intervals[intervals.len() / 2];
