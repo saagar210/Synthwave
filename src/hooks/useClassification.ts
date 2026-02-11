@@ -10,8 +10,30 @@ interface FeatureAccumulator {
   count: number;
 }
 
+function computeBeatRegularity(beatTimes: number[]): number {
+  if (beatTimes.length < 3) return 0.5;
+
+  const intervals: number[] = [];
+  for (let i = 1; i < beatTimes.length; i++) {
+    intervals.push(beatTimes[i] - beatTimes[i - 1]);
+  }
+
+  const mean = intervals.reduce((sum, val) => sum + val, 0) / intervals.length;
+  if (mean <= 0) return 0.5;
+
+  const variance =
+    intervals.reduce((sum, val) => sum + (val - mean) ** 2, 0) / intervals.length;
+  const stddev = Math.sqrt(variance);
+
+  // Coefficient of variation -> normalized regularity score [0, 1]
+  const cv = stddev / mean;
+  const regularity = 1 - Math.min(1, cv);
+  return Number.isFinite(regularity) ? regularity : 0.5;
+}
+
 export function useClassification(): void {
   const accRef = useRef<FeatureAccumulator>({ rms: 0, centroid: 0, flux: 0, zcr: 0, count: 0 });
+  const beatTimesRef = useRef<number[]>([]);
 
   useEffect(() => {
     // Check Ollama availability on mount
@@ -29,6 +51,14 @@ export function useClassification(): void {
       acc.flux += frame.flux;
       acc.zcr += frame.zcr;
       acc.count += 1;
+
+      if (frame.beat) {
+        const beats = beatTimesRef.current;
+        beats.push(frame.timestamp);
+        if (beats.length > 64) {
+          beats.shift();
+        }
+      }
     });
 
     // Periodic classification every 15s
@@ -45,7 +75,7 @@ export function useClassification(): void {
       const avgFlux = acc.flux / acc.count;
       const avgZcr = acc.zcr / acc.count;
       const bpm = store.frame?.bpm ?? 0;
-      const beatRegularity = 0.5; // TODO: compute from beat history
+      const beatRegularity = computeBeatRegularity(beatTimesRef.current);
 
       // Reset accumulator
       acc.rms = 0;

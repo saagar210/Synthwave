@@ -3,7 +3,7 @@ import { useCallback, useRef, useState } from "react";
 interface RecorderState {
   isRecording: boolean;
   duration: number;
-  startRecording: (canvas: HTMLCanvasElement) => void;
+  startRecording: (canvas: HTMLCanvasElement, onAutoStop?: (blob: Blob) => void) => void;
   stopRecording: () => Promise<Blob | null>;
 }
 
@@ -17,6 +17,7 @@ export function useRecorder(): RecorderState {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef(0);
   const stoppingRef = useRef(false);
+  const autoStoppingRef = useRef(false);
 
   const cleanup = useCallback(() => {
     if (timerRef.current) {
@@ -26,44 +27,58 @@ export function useRecorder(): RecorderState {
     setIsRecording(false);
     setDuration(0);
     stoppingRef.current = false;
+    autoStoppingRef.current = false;
   }, []);
 
-  const startRecording = useCallback((canvas: HTMLCanvasElement) => {
-    const stream = canvas.captureStream(60);
-    const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-      ? "video/webm;codecs=vp9"
-      : "video/webm";
+  const startRecording = useCallback(
+    (canvas: HTMLCanvasElement, onAutoStop?: (blob: Blob) => void) => {
+      const stream = canvas.captureStream(60);
+      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+        ? "video/webm;codecs=vp9"
+        : "video/webm";
 
-    const recorder = new MediaRecorder(stream, { mimeType });
-    chunksRef.current = [];
+      const recorder = new MediaRecorder(stream, { mimeType });
+      chunksRef.current = [];
 
-    recorder.ondataavailable = (e) => {
-      if (e.data.size > 0) {
-        chunksRef.current.push(e.data);
-      }
-    };
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          chunksRef.current.push(e.data);
+        }
+      };
 
-    recorder.start(100);
-    recorderRef.current = recorder;
-    startTimeRef.current = Date.now();
-    stoppingRef.current = false;
-    setIsRecording(true);
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: recorder.mimeType });
+        if (autoStoppingRef.current && onAutoStop) {
+          onAutoStop(blob);
+        }
+      };
 
-    timerRef.current = setInterval(() => {
-      const elapsed = (Date.now() - startTimeRef.current) / 1000;
-      setDuration(Math.floor(elapsed));
+      recorder.start(100);
+      recorderRef.current = recorder;
+      startTimeRef.current = Date.now();
+      stoppingRef.current = false;
+      autoStoppingRef.current = false;
+      setIsRecording(true);
 
-      if (elapsed >= MAX_DURATION && !stoppingRef.current) {
-        stoppingRef.current = true;
-        recorder.stop();
-        cleanup();
-      }
-    }, 200);
-  }, [cleanup]);
+      timerRef.current = setInterval(() => {
+        const elapsed = (Date.now() - startTimeRef.current) / 1000;
+        setDuration(Math.floor(elapsed));
+
+        if (elapsed >= MAX_DURATION && !stoppingRef.current) {
+          stoppingRef.current = true;
+          autoStoppingRef.current = true;
+          recorder.stop();
+          cleanup();
+        }
+      }, 200);
+    },
+    [cleanup],
+  );
 
   const stopRecording = useCallback(async (): Promise<Blob | null> => {
     if (!recorderRef.current || stoppingRef.current) return null;
     stoppingRef.current = true;
+    autoStoppingRef.current = false;
 
     return new Promise((resolve) => {
       const recorder = recorderRef.current!;

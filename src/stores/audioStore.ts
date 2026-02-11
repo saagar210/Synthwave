@@ -7,6 +7,8 @@ interface Classification {
   energy: string;
 }
 
+type AudioSource = "live" | "file" | null;
+
 interface AudioState {
   frame: AudioFrame | null;
   spectrumData: Float32Array | null;
@@ -14,6 +16,8 @@ interface AudioState {
   smoothedSpectrum: Float32Array | null;
   devices: AudioDevice[];
   isCapturing: boolean;
+  isPaused: boolean;
+  source: AudioSource;
   beatIntensity: number;
   classification: Classification | null;
   ollamaAvailable: boolean;
@@ -23,6 +27,8 @@ interface AudioState {
   setFrame: (frame: AudioFrame) => void;
   setDevices: (devices: AudioDevice[]) => void;
   setCapturing: (capturing: boolean) => void;
+  setPaused: (paused: boolean) => void;
+  setSource: (source: AudioSource) => void;
   decayBeat: () => void;
   setClassification: (c: Classification | null) => void;
   setOllamaAvailable: (available: boolean) => void;
@@ -37,6 +43,8 @@ export const useAudioStore = create<AudioState>((set) => ({
   smoothedSpectrum: null,
   devices: [],
   isCapturing: false,
+  isPaused: false,
+  source: null,
   beatIntensity: 0,
   classification: null,
   ollamaAvailable: false,
@@ -71,6 +79,8 @@ export const useAudioStore = create<AudioState>((set) => ({
 
   setDevices: (devices: AudioDevice[]) => set({ devices }),
   setCapturing: (isCapturing: boolean) => set({ isCapturing }),
+  setPaused: (isPaused: boolean) => set({ isPaused }),
+  setSource: (source: AudioSource) => set({ source }),
 
   decayBeat: () =>
     set((state) => ({

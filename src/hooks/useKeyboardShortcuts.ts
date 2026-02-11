@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { useVisualStore, MODES } from "../stores/visualStore";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useAudioStore } from "../stores/audioStore";
@@ -64,8 +65,22 @@ export function useKeyboardShortcuts() {
         case " ": {
           e.preventDefault();
           const audio = useAudioStore.getState();
-          if (audio.isCapturing && audio.stopCaptureFn) {
-            audio.stopCaptureFn();
+          if (audio.isCapturing) {
+            if (audio.source === "file") {
+              try {
+                const paused = await invoke<boolean>("toggle_pause");
+                useAudioStore.getState().setPaused(paused);
+                useToastStore
+                  .getState()
+                  .addToast("info", paused ? "Playback paused" : "Playback resumed");
+              } catch {
+                if (audio.stopCaptureFn) {
+                  audio.stopCaptureFn();
+                }
+              }
+            } else if (audio.stopCaptureFn) {
+              audio.stopCaptureFn();
+            }
           } else if (!audio.isCapturing && audio.startCaptureFn) {
             audio.startCaptureFn();
           }
