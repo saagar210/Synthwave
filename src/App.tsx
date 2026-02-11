@@ -5,6 +5,7 @@ import { Controls } from "./components/Controls";
 import { InfoOverlay } from "./components/InfoOverlay";
 import { ToastContainer } from "./components/ToastContainer";
 import { WelcomeModal } from "./components/WelcomeModal";
+import { SettingsDrawer } from "./components/SettingsDrawer";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useClassification } from "./hooks/useClassification";
 import { useFileDrop } from "./hooks/useFileDrop";
@@ -16,6 +17,8 @@ function App() {
   useKeyboardShortcuts();
   useClassification();
   useFileDrop();
+  const showSettings = useVisualStore((s) => s.showSettings);
+  const toggleSettings = useVisualStore((s) => s.toggleSettings);
 
   const [showWelcome, setShowWelcome] = useState(false);
 
@@ -56,6 +59,7 @@ function App() {
       <InfoOverlay />
       <Controls />
       <ToastContainer />
+      <SettingsDrawer open={showSettings} onClose={toggleSettings} />
       {showWelcome && <WelcomeModal onDismiss={dismissWelcome} />}
     </div>
   );

@@ -38,6 +38,8 @@ export function useFileDrop(): void {
             // Sentinel detection: RMS < 0 means device disconnected / playback finished
             if (frame.rms < 0) {
               useAudioStore.getState().setCapturing(false);
+              useAudioStore.getState().setPaused(false);
+              useAudioStore.getState().setSource(null);
               useToastStore.getState().addToast("info", "Playback finished");
               return;
             }
@@ -54,6 +56,8 @@ export function useFileDrop(): void {
 
           const duration = await invoke<number>("start_file_audio", { path, config, channel });
           useAudioStore.getState().setCapturing(true);
+          useAudioStore.getState().setPaused(false);
+          useAudioStore.getState().setSource("file");
 
           const durationStr = duration > 0 ? ` (${Math.round(duration)}s)` : "";
           const filename = path.split("/").pop() ?? path;

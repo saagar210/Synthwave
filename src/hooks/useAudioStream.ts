@@ -22,6 +22,8 @@ export function useAudioStream() {
         // Sentinel detection: RMS < 0 means device disconnected
         if (frame.rms < 0) {
           useAudioStore.getState().setCapturing(false);
+          useAudioStore.getState().setPaused(false);
+          useAudioStore.getState().setSource(null);
           useToastStore.getState().addToast("error", "Audio device disconnected");
           channelRef.current = null;
           return;
@@ -40,6 +42,8 @@ export function useAudioStream() {
       try {
         await invoke("start_audio", { config, channel });
         useAudioStore.getState().setCapturing(true);
+        useAudioStore.getState().setPaused(false);
+        useAudioStore.getState().setSource("live");
       } catch (err) {
         const msg = String(err);
         if (msg.includes("permission") || msg.includes("denied")) {
@@ -63,6 +67,8 @@ export function useAudioStream() {
   const stopCapture = useCallback(async () => {
     await invoke("stop_audio").catch(() => {});
     useAudioStore.getState().setCapturing(false);
+    useAudioStore.getState().setPaused(false);
+    useAudioStore.getState().setSource(null);
     channelRef.current = null;
   }, []);
 

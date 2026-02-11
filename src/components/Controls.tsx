@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { useAudioStream } from "../hooks/useAudioStream";
 import { useRecorder } from "../hooks/useRecorder";
 import { useAudioStore } from "../stores/audioStore";
@@ -12,6 +13,8 @@ export function Controls() {
   const { startCapture, stopCapture, isCapturing } = useAudioStream();
   const { isRecording, duration, startRecording, stopRecording } = useRecorder();
   const devices = useAudioStore((s) => s.devices);
+  const source = useAudioStore((s) => s.source);
+  const isPaused = useAudioStore((s) => s.isPaused);
   const mode = useVisualStore((s) => s.mode);
   const themeIndex = useVisualStore((s) => s.themeIndex);
   const showControls = useVisualStore((s) => s.showControls);
@@ -19,9 +22,62 @@ export function Controls() {
   const setThemeIndex = useVisualStore((s) => s.setThemeIndex);
   const toggleSettings = useVisualStore((s) => s.toggleSettings);
 
-  const [selectedDevice, setSelectedDevice] = useState<string>("");
+  const [selectedDevice, setSelectedDevice] = useState<string>(
+    useSettingsStore.getState().lastDeviceName ?? "",
+  );
   const [visible, setVisible] = useState(true);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const saveRecording = (blob: Blob, fromAutoStop: boolean = false) => {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.download = `synthwave-${Date.now()}.webm`;
+    link.href = url;
+    link.click();
+    URL.revokeObjectURL(url);
+
+    useToastStore
+      .getState()
+      .addToast("success", fromAutoStop ? "Recording saved (60s limit reached)" : "Recording saved");
+  };
+
+
+  // Load audio devices for selector
+  useEffect(() => {
+    let active = true;
+
+    const loadDevices = async () => {
+      try {
+        const loadedDevices = await invoke<{ name: string; isDefault: boolean; isInput: boolean }[]>(
+          "list_audio_devices",
+        );
+        if (!active) return;
+
+        useAudioStore.getState().setDevices(loadedDevices);
+
+        const storedDevice = useSettingsStore.getState().lastDeviceName;
+        if (!storedDevice) return;
+
+        const stillAvailable = loadedDevices.some((d) => d.name === storedDevice);
+        if (stillAvailable) {
+          setSelectedDevice(storedDevice);
+        } else {
+          setSelectedDevice("");
+          useSettingsStore.getState().setLastDeviceName(null);
+        }
+      } catch (err) {
+        useToastStore
+          .getState()
+          .addToast("warning", `Unable to load audio devices: ${String(err)}`);
+      }
+    };
+
+    loadDevices();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Register capture functions for keyboard shortcuts
   useEffect(() => {
@@ -38,16 +94,10 @@ export function Controls() {
       if (isRecording) {
         const blob = await stopRecording();
         if (blob) {
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement("a");
-          link.download = `synthwave-${Date.now()}.webm`;
-          link.href = url;
-          link.click();
-          URL.revokeObjectURL(url);
-          useToastStore.getState().addToast("success", "Recording saved");
+          saveRecording(blob);
         }
       } else if (canvas) {
-        startRecording(canvas);
+        startRecording(canvas, (blob) => saveRecording(blob, true));
         useToastStore.getState().addToast("info", "Recording started");
       }
     };
@@ -73,21 +123,37 @@ export function Controls() {
     };
   }, []);
 
+
+  const handleAudioAction = async () => {
+    if (isCapturing) {
+      if (source === "file") {
+        try {
+          const paused = await invoke<boolean>("toggle_pause");
+          useAudioStore.getState().setPaused(paused);
+          useToastStore
+            .getState()
+            .addToast("info", paused ? "Playback paused" : "Playback resumed");
+          return;
+        } catch (err) {
+          useToastStore.getState().addToast("warning", `Pause failed: ${String(err)}`);
+        }
+      }
+      await stopCapture();
+      return;
+    }
+
+    await startCapture(selectedDevice || undefined);
+  };
+
   const handleRecord = async () => {
     const canvas = getCanvasRef();
     if (isRecording) {
       const blob = await stopRecording();
       if (blob) {
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.download = `synthwave-${Date.now()}.webm`;
-        link.href = url;
-        link.click();
-        URL.revokeObjectURL(url);
-        useToastStore.getState().addToast("success", "Recording saved");
+        saveRecording(blob);
       }
     } else if (canvas) {
-      startRecording(canvas);
+      startRecording(canvas, (blob) => saveRecording(blob, true));
       useToastStore.getState().addToast("info", "Recording started");
     }
   };
@@ -115,14 +181,14 @@ export function Controls() {
           {/* Audio Controls */}
           <div className="flex items-center gap-2">
             <button
-              onClick={() => (isCapturing ? stopCapture() : startCapture(selectedDevice || undefined))}
+              onClick={handleAudioAction}
               className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
                 isCapturing
                   ? "bg-red-500/80 hover:bg-red-500 text-white"
                   : "bg-white/10 hover:bg-white/20 text-white"
               }`}
             >
-              {isCapturing ? "Stop" : "Start"}
+              {isCapturing ? (source === "file" ? (isPaused ? "Resume" : "Pause") : "Stop") : "Start"}
             </button>
 
             {/* Record button */}
@@ -146,7 +212,11 @@ export function Controls() {
             {devices.length > 0 && (
               <select
                 value={selectedDevice}
-                onChange={(e) => setSelectedDevice(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setSelectedDevice(value);
+                  useSettingsStore.getState().setLastDeviceName(value || null);
+                }}
                 className="bg-white/10 text-white text-sm rounded-lg px-3 py-2 border border-white/10 outline-none"
               >
                 <option value="">Default Device</option>
