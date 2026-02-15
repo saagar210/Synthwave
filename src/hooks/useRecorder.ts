@@ -51,6 +51,10 @@ export function useRecorder(): RecorderState {
         if (autoStoppingRef.current && onAutoStop) {
           onAutoStop(blob);
         }
+        // Cleanup after blob is processed (for auto-stop case)
+        if (autoStoppingRef.current) {
+          cleanup();
+        }
       };
 
       recorder.start(100);
@@ -68,7 +72,7 @@ export function useRecorder(): RecorderState {
           stoppingRef.current = true;
           autoStoppingRef.current = true;
           recorder.stop();
-          cleanup();
+          // Note: cleanup() is now deferred to onstop handler to ensure blob is saved
         }
       }, 200);
     },
