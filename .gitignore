@@ -14,8 +14,7 @@ npm-debug.log*
 pnpm-debug.log*
 
 # Editor
-.vscode/*
-!.vscode/extensions.json
+.vscode/
 .idea
 *.sw?
 
@@ -24,3 +23,6 @@ pnpm-debug.log*
 
 # Local config
 *.local
+
+# Codex session artifacts
+codex/
