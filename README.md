@@ -68,6 +68,48 @@ pnpm tauri dev
 
 Hit **Start**, play some music, and watch your sound come alive.
 
+### Dev Modes
+
+#### Normal dev (fastest rebuilds, uses more disk)
+
+```bash
+pnpm tauri dev
+```
+
+This keeps Rust and Vite build caches in the repo (`src-tauri/target`, `node_modules/.vite`) for faster restarts.
+
+#### Lean dev (lower disk usage, slower cold starts)
+
+```bash
+pnpm dev:lean
+```
+
+Lean mode still starts Tauri dev normally, but routes heavy build caches to a temporary directory and removes heavy artifacts on exit:
+
+- temporary Rust target cache (instead of `src-tauri/target`)
+- temporary Vite cache (instead of `node_modules/.vite`)
+- cleanup on exit for `dist`, `dist-ssr`, `src-tauri/target`, and `node_modules/.vite`
+
+If port `1420` is already in use, you can run lean mode on another port:
+
+```bash
+LEAN_VITE_PORT=1520 pnpm dev:lean
+```
+
+### Cleanup Commands
+
+Targeted cleanup (heavy build artifacts only):
+
+```bash
+pnpm clean:heavy
+```
+
+Full local reproducible cleanup (includes dependencies):
+
+```bash
+pnpm clean:local
+```
+
 ---
 
 ## Keyboard Shortcuts

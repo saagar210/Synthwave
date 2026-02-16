@@ -5,10 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:lean": "bash scripts/dev-lean.sh",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "clean:heavy": "bash scripts/clean-heavy.sh",
+    "clean:local": "bash scripts/clean-local.sh"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.18",
