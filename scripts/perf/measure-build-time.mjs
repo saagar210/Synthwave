@@ -3,14 +3,20 @@ import { mkdirSync, writeFileSync } from "node:fs";
 
 const npmExecPath = process.env.npm_execpath;
 if (!npmExecPath) {
-  console.error("npm_execpath is not set; run this script through pnpm, npm, or yarn.");
+  console.error(
+    "npm_execpath is not set; run this script through pnpm, npm, or yarn.",
+  );
   process.exit(1);
 }
 
 const start = Date.now();
-const result = spawnSync(process.execPath, [npmExecPath, "run", "build"], {
-  stdio: "inherit",
-});
+const result = spawnSync(
+  process.execPath,
+  [npmExecPath, "exec", "vite", "build"],
+  {
+    stdio: "inherit",
+  },
+);
 const end = Date.now();
 
 mkdirSync(".perf-results", { recursive: true });
@@ -20,7 +26,7 @@ writeFileSync(
     {
       buildMs: end - start,
       capturedAt: new Date().toISOString(),
-      command: "npm_execpath run build",
+      command: "npm_execpath exec vite build",
     },
     null,
     2,

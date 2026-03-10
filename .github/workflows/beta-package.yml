@@ -1,0 +1,127 @@
+name: beta-package
+
+on:
+  workflow_dispatch:
+    inputs:
+      allow_unsigned_smoke:
+        description: "Allow an unsigned internal smoke package when Apple signing secrets are unavailable"
+        required: false
+        default: false
+        type: boolean
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: beta-package-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      signing_ready: ${{ steps.signing.outputs.ready }}
+    steps:
+      - id: signing
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ALLOW_UNSIGNED_SMOKE: ${{ github.event.inputs.allow_unsigned_smoke || 'false' }}
+        run: |
+          if [[ -n "$APPLE_CERTIFICATE" && -n "$APPLE_CERTIFICATE_PASSWORD" && -n "$APPLE_SIGNING_IDENTITY" && -n "$APPLE_ID" && -n "$APPLE_PASSWORD" && -n "$APPLE_TEAM_ID" ]]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" && "${ALLOW_UNSIGNED_SMOKE}" == "true" ]]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Missing Apple signing/notarization secrets for signed beta packaging." >&2
+          exit 1
+
+  build-macos-beta:
+    needs: preflight
+    runs-on: macos-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - aarch64-apple-darwin
+          - x86_64-apple-darwin
+    env:
+      APPLE_CERTIFICATE: ${{ needs.preflight.outputs.signing_ready == 'true' && secrets.APPLE_CERTIFICATE || '' }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ needs.preflight.outputs.signing_ready == 'true' && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
+      APPLE_SIGNING_IDENTITY: ${{ needs.preflight.outputs.signing_ready == 'true' && secrets.APPLE_SIGNING_IDENTITY || '' }}
+      APPLE_ID: ${{ needs.preflight.outputs.signing_ready == 'true' && secrets.APPLE_ID || '' }}
+      APPLE_PASSWORD: ${{ needs.preflight.outputs.signing_ready == 'true' && secrets.APPLE_PASSWORD || '' }}
+      APPLE_TEAM_ID: ${{ needs.preflight.outputs.signing_ready == 'true' && secrets.APPLE_TEAM_ID || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - run: rustup target add ${{ matrix.target }}
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm type-check
+      - run: pnpm test:unit
+      - run: pnpm test:rust
+      - run: pnpm build
+      - run: pnpm tauri build --target ${{ matrix.target }}
+      - name: Summarize signing mode
+        run: |
+          if [[ "${{ needs.preflight.outputs.signing_ready }}" == "true" ]]; then
+            echo "Built signed/notarized beta candidate for ${{ matrix.target }}."
+            echo "- ${{ matrix.target }}: signed/notarized beta candidate" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Built unsigned internal smoke candidate for ${{ matrix.target }}."
+            echo "- ${{ matrix.target }}: unsigned internal smoke candidate" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "- Validate with docs/private-beta/manual-validation-matrix.md before external distribution." >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: synthwave-macos-${{ matrix.target }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.app
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.dmg
+
+  beta-docs:
+    needs: preflight
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Summarize release validation posture
+        run: |
+          echo "## SynthWave beta packaging" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Signed beta is the default release target." >> "$GITHUB_STEP_SUMMARY"
+          echo "- Unsigned packaging is only valid for internal smoke runs triggered manually." >> "$GITHUB_STEP_SUMMARY"
+          echo "- Release docs are attached as a separate artifact for tester/support handoff." >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: synthwave-private-beta-docs
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            docs/private-beta/**
