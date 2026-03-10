@@ -11,5 +11,16 @@ export default defineConfig({
     css: false,
     restoreMocks: true,
     clearMocks: true,
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "lcov"],
+      reportsDirectory: "./coverage",
+      include: [
+        "src/components/**/*.tsx",
+        "src/hooks/**/*.ts",
+        "src/stores/**/*.ts",
+        "src/App.tsx",
+      ],
+    },
   },
 });

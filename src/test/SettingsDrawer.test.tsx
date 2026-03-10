@@ -99,4 +99,20 @@ describe("SettingsDrawer", () => {
       screen.getByText("Audio device disconnected. Device list refreshed."),
     ).toBeInTheDocument();
   });
+
+  it("shows file playback and analyzing status before an issue is present", () => {
+    useAudioStore.setState({
+      isCapturing: true,
+      source: "file",
+      ollamaChecked: true,
+      ollamaAvailable: true,
+      isClassifying: true,
+    });
+
+    render(<SettingsDrawer open={true} onClose={() => {}} />);
+
+    expect(screen.getByText("File playback")).toBeInTheDocument();
+    expect(screen.getByText("Analyzing")).toBeInTheDocument();
+    expect(screen.getByText("None")).toBeInTheDocument();
+  });
 });
