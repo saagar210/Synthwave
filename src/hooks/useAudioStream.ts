@@ -5,6 +5,12 @@ import { useSettingsStore } from "../stores/settingsStore";
 import { useToastStore } from "../stores/toastStore";
 import type { AudioConfig, AudioFrame } from "../types/audio";
 
+function requestDeviceRefresh(silent: boolean = false) {
+  window.dispatchEvent(
+    new CustomEvent("synthwave:refresh-audio-devices", { detail: { silent } }),
+  );
+}
+
 export function useAudioStream() {
   const isCapturing = useAudioStore((s) => s.isCapturing);
   const channelRef = useRef<Channel<AudioFrame> | null>(null);
@@ -24,7 +30,19 @@ export function useAudioStream() {
           useAudioStore.getState().setCapturing(false);
           useAudioStore.getState().setPaused(false);
           useAudioStore.getState().setSource(null);
-          useToastStore.getState().addToast("error", "Audio device disconnected");
+          if (
+            deviceName &&
+            useSettingsStore.getState().lastDeviceName === deviceName
+          ) {
+            useSettingsStore.getState().setLastDeviceName(null);
+          }
+          requestDeviceRefresh(true);
+          useToastStore
+            .getState()
+            .addToast(
+              "error",
+              "Audio device disconnected. Device list refreshed.",
+            );
           channelRef.current = null;
           return;
         }
@@ -55,7 +73,19 @@ export function useAudioStream() {
               0,
             );
         } else if (msg.includes("not found")) {
-          useToastStore.getState().addToast("error", "Audio device not found");
+          if (
+            deviceName &&
+            useSettingsStore.getState().lastDeviceName === deviceName
+          ) {
+            useSettingsStore.getState().setLastDeviceName(null);
+          }
+          requestDeviceRefresh();
+          useToastStore
+            .getState()
+            .addToast(
+              "error",
+              "Audio device not found. Device list refreshed; choose another input.",
+            );
         } else {
           useToastStore.getState().addToast("error", `Audio error: ${msg}`);
         }

@@ -79,7 +79,7 @@ export const THEMES: Theme[] = [
     },
   },
   {
-    name: "Custom",
+    name: "Slate",
     colors: {
       background: [0.02, 0.02, 0.02],
       primary: [0.8, 0.8, 0.8],

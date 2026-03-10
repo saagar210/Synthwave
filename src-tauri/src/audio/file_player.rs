@@ -13,7 +13,6 @@ use symphonia::core::probe::Hint;
 use crate::error::AppError;
 
 pub struct FileInfo {
-    pub sample_rate: u32,
     pub duration_secs: f64,
 }
 
@@ -25,6 +24,7 @@ impl FilePlayer {
         mut producer: impl Producer<Item = f32> + Send + 'static,
         running: Arc<AtomicBool>,
         paused: Arc<AtomicBool>,
+        completed: Arc<AtomicBool>,
         target_fps: u32,
     ) -> Result<(JoinHandle<()>, FileInfo), AppError> {
         let file = std::fs::File::open(path)
@@ -57,12 +57,6 @@ impl FilePlayer {
             .sample_rate
             .unwrap_or(44100);
 
-        let channels = track
-            .codec_params
-            .channels
-            .map(|c| c.count())
-            .unwrap_or(2);
-
         let duration_secs = track
             .codec_params
             .n_frames
@@ -73,17 +67,19 @@ impl FilePlayer {
         let codec_params = track.codec_params.clone();
 
         let file_info = FileInfo {
-            sample_rate,
             duration_secs,
         };
 
         let handle = std::thread::spawn(move || {
+            completed.store(false, Ordering::Relaxed);
+
             let mut decoder = match symphonia::default::get_codecs()
                 .make(&codec_params, &DecoderOptions::default())
             {
                 Ok(d) => d,
                 Err(e) => {
                     eprintln!("Failed to create decoder: {e}");
+                    completed.store(true, Ordering::Relaxed);
                     return;
                 }
             };
@@ -112,10 +108,13 @@ impl FilePlayer {
                     Err(symphonia::core::errors::Error::IoError(ref e))
                         if e.kind() == std::io::ErrorKind::UnexpectedEof =>
                     {
-                        // EOF — playback finished
+                        completed.store(true, Ordering::Relaxed);
                         break;
                     }
-                    Err(_) => break,
+                    Err(_) => {
+                        completed.store(true, Ordering::Relaxed);
+                        break;
+                    }
                 };
 
                 if packet.track_id() != track_id {
@@ -177,6 +176,8 @@ impl FilePlayer {
             if !pending_mono.is_empty() && running.load(Ordering::Relaxed) {
                 producer.push_slice(&pending_mono);
             }
+
+            completed.store(true, Ordering::Relaxed);
         });
 
         Ok((handle, file_info))

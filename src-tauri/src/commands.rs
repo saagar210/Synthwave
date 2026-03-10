@@ -51,6 +51,7 @@ fn spawn_analysis_thread(
     target_fps: u32,
     sensitivity: f32,
     running: Arc<AtomicBool>,
+    completed: Option<Arc<AtomicBool>>,
 ) -> std::thread::JoinHandle<()> {
     let frame_interval = std::time::Duration::from_micros(1_000_000 / target_fps as u64);
 
@@ -89,6 +90,25 @@ fn spawn_analysis_thread(
                     }
                 }
             } else {
+                if completed
+                    .as_ref()
+                    .is_some_and(|playback_complete| playback_complete.load(Ordering::Relaxed))
+                {
+                    let sentinel = AudioFrame {
+                        spectrum: vec![],
+                        waveform: vec![],
+                        rms: -1.0,
+                        centroid: 0.0,
+                        flux: 0.0,
+                        zcr: 0.0,
+                        beat: false,
+                        bpm: 0.0,
+                        timestamp: start.elapsed().as_secs_f64(),
+                    };
+                    let _ = channel.send(sentinel);
+                    break;
+                }
+
                 stall_count += 1;
                 // 180 stalls at 60fps ≈ 3 seconds of no data → device likely disconnected
                 if stall_count >= 180 {
@@ -157,7 +177,15 @@ pub fn start_audio(
         *s = Some(StreamWrapper(stream));
     }
 
-    let handle = spawn_analysis_thread(consumer, channel, fft_size, target_fps, sensitivity, running);
+    let handle = spawn_analysis_thread(
+        consumer,
+        channel,
+        fft_size,
+        target_fps,
+        sensitivity,
+        running,
+        None,
+    );
 
     {
         let mut h = state.analysis_handle.lock()
@@ -191,10 +219,11 @@ pub fn start_file_audio(
     running.store(true, Ordering::SeqCst);
     let paused = state.paused.clone();
     paused.store(false, Ordering::SeqCst);
+    let completed = Arc::new(AtomicBool::new(false));
 
     // Start file decode + paced playback
     let (file_handle, file_info) =
-        FilePlayer::play_file(&path, producer, running.clone(), paused, target_fps)?;
+        FilePlayer::play_file(&path, producer, running.clone(), paused, completed.clone(), target_fps)?;
 
     {
         let mut fh = state.file_handle.lock()
@@ -203,7 +232,7 @@ pub fn start_file_audio(
     }
 
     let analysis_handle = spawn_analysis_thread(
-        consumer, channel, fft_size, target_fps, sensitivity, running,
+        consumer, channel, fft_size, target_fps, sensitivity, running, Some(completed),
     );
 
     {
