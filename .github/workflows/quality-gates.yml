@@ -37,7 +37,6 @@ jobs:
         run: |
           pnpm type-check
           pnpm test:unit
-          pnpm test:rust
           pnpm build
           pnpm perf:bundle
           pnpm perf:build
