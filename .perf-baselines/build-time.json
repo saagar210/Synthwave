@@ -1,0 +1,5 @@
+{
+  "buildMs": 1015,
+  "capturedAt": "2026-03-10T10:21:28.444Z",
+  "command": "npm_execpath exec vite build"
+}

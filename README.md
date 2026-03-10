@@ -4,21 +4,23 @@
 
 SynthWave is a real-time audio visualizer that captures sound from your mic or system audio, runs FFT analysis at 60fps in Rust, and renders stunning GPU-accelerated visuals through WebGL 2 — all inside a native macOS desktop app.
 
+The current target is a macOS-first signed private beta. Apple Silicon and Intel are both in scope, and the repo now treats local AI classification, device recovery, and desktop verification as core ship work instead of optional polish.
+
 Seven visualization modes. Nine color themes. Beat-synced animations. AI-powered genre detection. Zero latency you can feel.
 
 ---
 
 ## What It Looks Like
 
-| Mode | Description |
-|------|------------|
-| **Waveform** | Glowing oscilloscope with thickness that pulses to the beat |
-| **Bars** | Classic spectrum analyzer with gravity-driven peak decay |
-| **Circular** | Mirrored spectrum wrapped around a pulsing ring |
+| Mode          | Description                                                    |
+| ------------- | -------------------------------------------------------------- |
+| **Waveform**  | Glowing oscilloscope with thickness that pulses to the beat    |
+| **Bars**      | Classic spectrum analyzer with gravity-driven peak decay       |
+| **Circular**  | Mirrored spectrum wrapped around a pulsing ring                |
 | **Particles** | 50,000 GPU-simulated particles that explode on every kick drum |
-| **Terrain** | A scrolling 3D landscape carved by your frequency history |
-| **Nebula** | Raymarched volumetric clouds that breathe with the bass |
-| **Starfield** | Procedural stars that warp to lightspeed on every beat |
+| **Terrain**   | A scrolling 3D landscape carved by your frequency history      |
+| **Nebula**    | Raymarched volumetric clouds that breathe with the bass        |
+| **Starfield** | Procedural stars that warp to lightspeed on every beat         |
 
 All seven modes react to bass energy, spectral centroid, zero-crossing rate, and beat detection in real time.
 
@@ -30,15 +32,15 @@ All seven modes react to bass energy, spectral centroid, zero-crossing rate, and
 - **Audio file playback** — Drag-and-drop MP3, WAV, FLAC, OGG, or AAC files directly onto the window. Symphonia decodes in Rust and feeds the same analysis pipeline as live audio
 - **7 visualization modes** — From classic waveforms to raymarched nebulas, each mode is a hand-written GLSL 300 es shader
 - **Smooth mode transitions** — Crossfade between modes with a 500ms FBO snapshot overlay instead of harsh cuts
-- **9 color themes** — Synthwave, Monochrome, Fire, Ocean, Neon, Sunset, Matrix, Aurora, and Custom — with smooth 500ms transitions
+- **9 color themes** — Synthwave, Monochrome, Fire, Ocean, Neon, Sunset, Matrix, Aurora, and Slate — with smooth 500ms transitions
 - **Beat detection** — Adaptive energy-based onset detection with BPM estimation, cooldown, and configurable sensitivity
 - **Bloom post-processing** — 4-pass framebuffer ping-pong with Reinhard tonemapping to prevent highlight blowout
 - **50K particle GPU sim** — Transform feedback keeps all 50,000 particles on the GPU
-- **AI genre/mood detection** — Optional Ollama integration classifies your music's genre, mood, and energy level every 15 seconds using local LLMs. Displayed live in the info overlay
+- **AI genre/mood detection** — Ollama integration classifies your music's genre, mood, and energy level every 15 seconds using local LLMs. Availability and results are surfaced live in the info overlay
 - **Video recording** — Record up to 60 seconds of WebM at 60fps directly from the canvas with a one-click UI or keyboard shortcut
 - **Screenshots** — `Cmd+Shift+S` saves a high-res PNG instantly
 - **Keyboard-driven** — Full keyboard shortcut support for modes, themes, fullscreen, recording, sensitivity, and more
-- **Persistent settings** — FFT size, sensitivity, last mode/theme, and preferences survive app restarts via debounced JSON persistence
+- **Persistent settings** — FFT size, beat sensitivity, target FPS, last mode/theme, and preferences survive app restarts via debounced JSON persistence
 - **Error resilience** — Classified error toasts for mic permission issues, device disconnects, WebGL context loss, and audio stalls
 - **First-run onboarding** — Welcome modal guides new users through the basics on first launch
 
@@ -52,10 +54,10 @@ All seven modes react to bass energy, spectral centroid, zero-crossing rate, and
 - **Rust** (latest stable) — `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
 - **Node.js 18+** and **pnpm** — `npm install -g pnpm`
 
-### Optional
+### Recommended For The Full Private Beta Experience
 
 - **[BlackHole](https://existential.audio/blackhole/)** — For system audio capture (without it, mic input works great)
-- **[Ollama](https://ollama.ai/)** — For AI genre/mood classification. Pull a model: `ollama pull mistral:7b-instruct`
+- **[Ollama](https://ollama.ai/)** — For AI genre, mood, and energy classification. Pull a model: `ollama pull mistral:7b-instruct`
 
 ### Run It
 
@@ -67,6 +69,16 @@ pnpm tauri dev
 ```
 
 Hit **Start**, play some music, and watch your sound come alive.
+
+## Private Beta Docs
+
+- [Tester guide](docs/private-beta/tester-guide.md)
+- [Known issues](docs/private-beta/known-issues.md)
+- [Support flow](docs/private-beta/support.md)
+- [Release validation](docs/private-beta/release-validation.md)
+- [Manual validation matrix](docs/private-beta/manual-validation-matrix.md)
+- [Release notes template](docs/private-beta/release-notes-0.1.0-private-beta.md)
+- [Closeout checklist](docs/private-beta/closeout.md)
 
 ### Dev Modes
 
@@ -114,19 +126,19 @@ pnpm clean:local
 
 ## Keyboard Shortcuts
 
-| Key | Action |
-|-----|--------|
-| `1` – `7` | Switch visualization mode |
-| `T` | Cycle color theme |
-| `F` | Toggle fullscreen |
-| `I` | Toggle info overlay (BPM, FPS, genre) |
-| `H` | Hide/show controls |
-| `Space` | Start/stop audio capture (or pause/resume file playback) |
-| `+` / `-` | Adjust beat sensitivity |
-| `S` | Toggle settings drawer |
-| `Cmd+Shift+S` | Save screenshot (PNG) |
-| `Cmd+R` | Start/stop recording (WebM) |
-| `Esc` | Exit fullscreen |
+| Key           | Action                                                       |
+| ------------- | ------------------------------------------------------------ |
+| `1` – `7`     | Switch visualization mode                                    |
+| `T`           | Cycle color theme                                            |
+| `F`           | Toggle fullscreen                                            |
+| `I`           | Toggle info overlay (BPM, FPS, AI status, genre/mood/energy) |
+| `H`           | Hide/show controls                                           |
+| `Space`       | Start/stop audio capture (or pause/resume file playback)     |
+| `+` / `-`     | Adjust beat sensitivity                                      |
+| `S`           | Toggle settings drawer                                       |
+| `Cmd+Shift+S` | Save screenshot (PNG)                                        |
+| `Cmd+R`       | Start/stop recording (WebM)                                  |
+| `Esc`         | Exit fullscreen                                              |
 
 ---
 
@@ -186,14 +198,20 @@ src/
 ## Tests
 
 ```bash
-# Rust tests (12 tests)
-cd src-tauri && cargo test
+# Frontend tests
+pnpm test
+
+# Rust tests
+pnpm test:rust
 
 # TypeScript type checking
-pnpm tsc --noEmit
+pnpm type-check
+
+# Full desktop verification lane
+pnpm verify
 ```
 
-Rust test coverage includes FFT accuracy, beat detection, ring buffer correctness, Ollama response parsing, settings persistence, and backward-compatible config loading.
+Rust test coverage includes FFT accuracy, beat detection, ring buffer correctness, Ollama response parsing, settings persistence, and backward-compatible config loading. Frontend tests focus on app initialization, private-beta UI truth, and settings behavior.
 
 ---
 
@@ -202,6 +220,10 @@ Rust test coverage includes FFT accuracy, beat detection, ring buffer correctnes
 ```bash
 pnpm tauri build
 ```
+
+For the signed private-beta path, tag a release and let GitHub Actions run the `beta-package` workflow. That workflow now validates both Apple Silicon and Intel package builds, uploads the private-beta docs bundle, and distinguishes signed beta candidates from unsigned internal smoke builds.
+
+For the full release checklist and rollback posture, use [Release validation](docs/private-beta/release-validation.md).
 
 Outputs a `.dmg` and `.app` bundle in `src-tauri/target/release/bundle/`.
 

@@ -4,6 +4,7 @@ node_modules
 # Build output
 dist
 dist-ssr
+.perf-results/
 
 # Rust build
 src-tauri/target

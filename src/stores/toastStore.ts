@@ -11,6 +11,7 @@ export interface Toast {
 
 interface ToastState {
   toasts: Toast[];
+  lastToast: Toast | null;
   addToast: (type: ToastType, message: string, duration?: number) => string;
   removeToast: (id: string) => void;
 }
@@ -19,6 +20,7 @@ let nextId = 0;
 
 export const useToastStore = create<ToastState>((set, get) => ({
   toasts: [],
+  lastToast: null,
 
   addToast: (type, message, duration = 3000) => {
     const id = `toast-${nextId++}`;
@@ -28,9 +30,15 @@ export const useToastStore = create<ToastState>((set, get) => ({
       const toasts = [...state.toasts, toast];
       // Cap at 5, evict oldest
       if (toasts.length > 5) {
-        return { toasts: toasts.slice(toasts.length - 5) };
+        return {
+          toasts: toasts.slice(toasts.length - 5),
+          lastToast: toast,
+        };
       }
-      return { toasts };
+      return {
+        toasts,
+        lastToast: toast,
+      };
     });
 
     if (duration > 0) {

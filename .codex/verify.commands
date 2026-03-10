@@ -1,7 +1,14 @@
-pnpm lint
-pnpm typecheck
-pnpm test:coverage
-pnpm test:integration
-pnpm test:e2e:smoke
-pnpm docs:generate
-pnpm docs:check
+# codex-os-managed
+pnpm install --frozen-lockfile
+pnpm git:guard:all
+pnpm type-check
+pnpm test:unit
+pnpm test:rust
+pnpm build
+pnpm perf:bundle
+pnpm perf:build
+pnpm perf:assets
+pnpm perf:memory
+pnpm perf:summary
+pnpm perf:gate
+pnpm tauri:smoke
