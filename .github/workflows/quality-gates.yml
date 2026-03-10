@@ -67,3 +67,12 @@ jobs:
             playwright-report/
             test-results/
             coverage/
+
+  quality-gates:
+    name: quality-gates
+    runs-on: ubuntu-latest
+    needs: quality
+    if: ${{ needs.quality.result == 'success' }}
+    steps:
+      - name: Confirm cross-platform gate completion
+        run: echo "quality-gates passed"

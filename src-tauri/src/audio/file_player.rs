@@ -108,11 +108,9 @@ impl FilePlayer {
                     Err(symphonia::core::errors::Error::IoError(ref e))
                         if e.kind() == std::io::ErrorKind::UnexpectedEof =>
                     {
-                        completed.store(true, Ordering::Relaxed);
                         break;
                     }
                     Err(_) => {
-                        completed.store(true, Ordering::Relaxed);
                         break;
                     }
                 };
@@ -172,7 +170,7 @@ impl FilePlayer {
                 }
             }
 
-            // Push remaining samples
+            // Flush the tail before signalling completion so the analyzer can drain it.
             if !pending_mono.is_empty() && running.load(Ordering::Relaxed) {
                 producer.push_slice(&pending_mono);
             }
