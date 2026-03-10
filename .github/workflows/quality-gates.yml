@@ -43,7 +43,9 @@ jobs:
           pnpm perf:assets
           pnpm perf:memory
           pnpm perf:summary
-          pnpm perf:gate
+
+      - name: Cross-platform performance gate
+        run: node scripts/perf/compare-metric.mjs .perf-baselines/bundle.json .perf-results/bundle.json totalBytes 0.08
 
       - name: Coverage
         run: pnpm test:coverage
