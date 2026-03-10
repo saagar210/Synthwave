@@ -38,7 +38,7 @@
     "perf:assets": "bash scripts/perf/check-assets.sh",
     "perf:memory": "node --expose-gc scripts/perf/memory-smoke.mjs",
     "perf:summary": "node scripts/perf/summarize.mjs",
-    "perf:gate": "node scripts/perf/compare-metric.mjs .perf-baselines/bundle.json .perf-results/bundle.json totalBytes 0.08 && node scripts/perf/compare-metric.mjs .perf-baselines/build-time.json .perf-results/build-time.json buildMs 0.25",
+    "perf:gate": "node scripts/perf/run-gates.mjs",
     "perf:baseline:update": "node scripts/perf/update-baselines.mjs",
     "lint-staged": "lint-staged"
   },
